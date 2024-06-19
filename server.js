@@ -54,10 +54,10 @@ app.get('/info', (req, res, next) => {
 })
 
 
-app.get('/api/persons', (req, res) => {
+app.get('/api/persons', (req, res, next) => {
   Person.find({}).then(
     persons => res.json(persons)
-  )
+  ).catch(e => next(e))
   
 })
 
@@ -74,7 +74,7 @@ app.get('/api/persons/:id', (req, res, next) => {
   .catch(error => next(error))
 })
 
-app.delete('/api/persons/:id', (req, res) => {
+app.delete('/api/persons/:id', (req, res, next) => {
   Person.findByIdAndDelete(req.params.id).then(
     deletedPerson => {
       if (deletedPerson) {
@@ -86,7 +86,7 @@ app.delete('/api/persons/:id', (req, res) => {
   ).then(e => next(e))
 })
 
-app.post('/api/persons', (req, res) => {
+app.post('/api/persons', (req, res, next) => {
   const body = req.body
   if (!body.name) {
     res.status(400).json({error: 'missing name'})
@@ -100,7 +100,9 @@ app.post('/api/persons', (req, res) => {
         })
       } else {
         const person = new Person({...body})
-        person.save().then(savedPerson => res.json(savedPerson))
+        person.save().then(savedPerson => res.json(savedPerson)).catch(
+          e => next(e)
+        )
       }
     })
   } 
@@ -131,14 +133,17 @@ const errorHandler = (error, request, response, next) => {
 
   if (error.name === 'CastError') {
     return response.status(400).send({ error: 'malformatted id' })
-  } 
+  }
+  if (error.name === 'ValidationError') {
+    return response.status(400).send({ error: error.message })
+  }
 
   next(error)
 }
 app.use(errorHandler)
 
 
-const PORT = 3001
+const PORT = process.env.PORT
 
 app.listen(PORT)
 console.log(`Server running on port ${PORT}`)
