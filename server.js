@@ -11,6 +11,8 @@ morgan.token('body', function getBody (req) {
   
 })
 
+
+
 app.use(cors())
 app.use(express.json())
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'))
@@ -43,10 +45,11 @@ app.use(express.static('dist'))
 
 
 
-app.get('/info', (req, res) => {
-  Person.find({}).then(person => 
+app.get('/info', (req, res, next) => {
+  Person.find({}).then(persons => 
     res.send(`<p>Phonebook has info for ${persons.length} people</p><p>${new Date()}</p>`)
   )
+  .catch(e => next(e))
   
 })
 
@@ -58,23 +61,29 @@ app.get('/api/persons', (req, res) => {
   
 })
 
-app.get('/api/persons/:id', (req, res) => {
+app.get('/api/persons/:id', (req, res, next) => {
   Person.findById(req.params.id).then(
-    person => res.json(person)
+    person => {
+      if (person) {
+        res.json(person)
+      } else {
+        res.status(404).end()
+      }
+    }
   )
+  .catch(error => next(error))
 })
 
 app.delete('/api/persons/:id', (req, res) => {
-  Person.deleteOne({_id:req.params.id}).then(
-    returnedObject => {
-      if (returnedObject.deletedCount) {
+  Person.findByIdAndDelete(req.params.id).then(
+    deletedPerson => {
+      if (deletedPerson) {
         res.status(204).end()
       } else {
         res.json({eror: 'delete failed'})
       }
-      }
-
-  )
+    }
+  ).then(e => next(e))
 })
 
 app.post('/api/persons', (req, res) => {
@@ -94,13 +103,39 @@ app.post('/api/persons', (req, res) => {
         person.save().then(savedPerson => res.json(savedPerson))
       }
     })
-  }
-  
-
-  
+  } 
   }
 )
 
+app.put('/api/persons/:id', (req, res, next) => {
+  const body = req.body
+  const person = {
+    name: body.name,
+    number: body.number
+  }
+  console.log('put id', req.params.id)
+  console.log('put person', person)
+  Person.findByIdAndUpdate(req.params.id, person, {new: true})
+    .then(updatedPerson => {
+      res.json(updatedPerson)
+    })
+    .catch(e => next(e))
+})
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' })
+}
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
+
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'malformatted id' })
+  } 
+
+  next(error)
+}
+app.use(errorHandler)
 
 
 const PORT = 3001
